@@ -67,11 +67,11 @@ jobs:
         run: |
           DURATION=$(ffprobe -i narration.wav -show_entries format=duration -v quiet -of csv="p=0" | cut -d. -f1)
           HEIGHT=$(python3 -c "from PIL import Image; print(Image.open('screenshot.png').size[1])")
-          SCROLL=$(echo "scale=0; ($HEIGHT - 1920) / $DURATION" | bc)
+          SCROLL=$(echo "scale=2; ($HEIGHT - 1920) / $DURATION" | bc)
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -filter_complex "[0:v]scale=1080:-1[scaled];[scaled]crop=1080:1920:0:'min(t*${SCROLL}\,${HEIGHT}-1920)',subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
+            -filter_complex "[0:v]scale=1080:${HEIGHT},crop=1080:1920:0:'min(t*${SCROLL}\,${HEIGHT}-1920)',subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
             -map "[v]" -map "1:a" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -shortest \
