@@ -20,16 +20,23 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg nodejs npm
+          sudo apt-get install -y ffmpeg nodejs npm python3-pip
+          pip3 install stable-ts --break-system-packages
           npm install -g puppeteer-cli
 
       - name: Download audio
-        run: |
-          wget -O narration.wav "${{ github.event.inputs.audio_url }}"
+        run: wget -O narration.wav "${{ github.event.inputs.audio_url }}"
 
-      - name: Read narration text
+      - name: Read narration
+        run: cat narration.txt
+
+      - name: Generate SRT subtitles
         run: |
-          wget -O narration.txt "https://raw.githubusercontent.com/Portfolio-professionnal/horror-pipeline/main/narration.txt"
+          stable-ts narration.wav --output subs.srt
+
+      - name: Download background music
+        run: |
+          wget -O music.mp3 "https://www.soundjay.com/misc/sounds/dark-ambience-1.mp3"
 
       - name: Screenshot Reddit
         run: |
@@ -44,5 +51,10 @@ jobs:
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black" \
-            -c:v libx264 -preset fast -crf 23 \
+            -stream_loop -1 -i music.mp3 \
+            -filter_complex "\
+              [0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,subtitles=subs.srt:force_style='FontSize=18,PrimaryColour=&Hffffff&'[v];\
+              [1:a]volume=1.0[narr];\
+              [2:a]volume=0.15[music];\
+              [narr][music]amix=inputs=2:duration=first[a]" \
+            -map
