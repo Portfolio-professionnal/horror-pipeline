@@ -63,23 +63,15 @@ jobs:
       - name: Screenshot HTML
         run: puppeteer screenshot "file://$(pwd)/thread.html" screenshot.png --full-page --viewport "1080x1920" --no-sandbox
 
-      - name: Get screenshot height
-        run: |
-          HEIGHT=$(python3 -c "
-          from PIL import Image
-          img = Image.open('screenshot.png')
-          print(img.size[1])
-          ")
-          echo "HEIGHT=$HEIGHT" >> $GITHUB_ENV
-
       - name: Assemble video with scroll
         run: |
           DURATION=$(ffprobe -i narration.wav -show_entries format=duration -v quiet -of csv="p=0" | cut -d. -f1)
-          SCROLL_SPEED=$(echo "scale=6; ($HEIGHT - 1920) / ($DURATION * 25)" | bc)
+          HEIGHT=$(python3 -c "from PIL import Image; print(Image.open('screenshot.png').size[1])")
+          SCROLL=$(echo "scale=0; ($HEIGHT - 1920) / $DURATION" | bc)
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -filter_complex "[0:v]scale=1080:-1,scroll=vertical=${SCROLL_SPEED}:v_start=0,crop=1080:1920,subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
+            -filter_complex "[0:v]scale=1080:-1[scaled];[scaled]crop=1080:1920:0:'min(t*${SCROLL}\,${HEIGHT}-1920)',subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
             -map "[v]" -map "1:a" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -shortest \
