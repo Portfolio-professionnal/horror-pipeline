@@ -20,7 +20,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg nodejs npm python3-pip
+          sudo apt-get install -y ffmpeg python3-pip
           pip3 install stable-ts --break-system-packages
           npm install -g puppeteer-cli
 
@@ -32,11 +32,7 @@ jobs:
 
       - name: Screenshot Reddit
         run: |
-          puppeteer screenshot \
-            --url "${{ github.event.inputs.reddit_url }}" \
-            --full-page \
-            --output screenshot.png \
-            --viewport-width 1080
+          puppeteer screenshot "${{ github.event.inputs.reddit_url }}" screenshot.png --full-page --viewport "1080x1920"
 
       - name: Assemble video
         run: |
