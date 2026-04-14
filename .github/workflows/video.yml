@@ -30,17 +30,67 @@ jobs:
       - name: Generate SRT subtitles
         run: stable-ts narration.wav --output subs.srt
 
-      - name: Screenshot Reddit
+      - name: Generate Reddit HTML
         run: |
-          OLD_URL=$(echo "${{ github.event.inputs.reddit_url }}" | sed 's/www.reddit.com/old.reddit.com/g')
-          puppeteer screenshot "$OLD_URL" screenshot.png --full-page --viewport "1080x1920" --no-sandbox
+          JSON_URL=$(echo "${{ github.event.inputs.reddit_url }}" | sed 's|/$||').json
+          curl -s -A "n8n-bot/1.0" "$JSON_URL" > post.json
+          TITLE=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['title'])")
+          TEXT=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['selftext'][:3000])")
+          AUTHOR=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['author'])")
+          SCORE=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['score'])")
+          cat > thread.html << HTMLEOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+          <meta charset="UTF-8">
+          <style>
+            body { background: #1a1a1b; color: #d7dadc; font-family: 'IBM Plex Sans', sans-serif; margin: 0; padding: 20px; width: 1080px; }
+            .post { background: #272729; border-radius: 8px; padding: 24px; margin-bottom: 16px; }
+            .subreddit { color: #ff4500; font-weight: 700; font-size: 14px; }
+            .author { color: #818384; font-size: 13px; margin: 8px 0; }
+            .title { font-size: 22px; font-weight: 700; margin: 16px 0; line-height: 1.4; }
+            .score { color: #ff4500; font-weight: 700; font-size: 14px; }
+            .text { font-size: 16px; line-height: 1.8; color: #d7dadc; white-space: pre-wrap; margin-top: 16px; }
+            .divider { border: none; border-top: 1px solid #343536; margin: 16px 0; }
+          </style>
+          </head>
+          <body>
+          <div class="post">
+            <div class="subreddit">r/nosleep</div>
+            <div class="author">Posted by u/$AUTHOR • ▲ $SCORE</div>
+            <div class="title">$TITLE</div>
+            <hr class="divider">
+            <div class="text">$TEXT</div>
+          </div>
+          </body>
+          </html>
+          HTMLEOF
 
-      - name: Assemble video
+      - name: Screenshot HTML
+        run: puppeteer screenshot "file://$(pwd)/thread.html" screenshot.png --full-page --viewport "1080x1920" --no-sandbox
+
+      - name: Get screenshot height
         run: |
+          HEIGHT=$(python3 -c "
+          from PIL import Image
+          img = Image.open('screenshot.png')
+          print(img.size[1])
+          " 2>/dev/null || echo "3000")
+          echo "HEIGHT=$HEIGHT" >> $GITHUB_ENV
+
+      - name: Install Pillow
+        run: pip3 install Pillow --break-system-packages
+
+      - name: Assemble video with scroll
+        run: |
+          DURATION=$(ffprobe -i narration.wav -show_entries format=duration -v quiet -of csv="p=0" | cut -d. -f1)
+          SCROLL_SPEED=$(echo "scale=4; (${{ env.HEIGHT }} - 1920) / $DURATION / 25" | bc)
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,subtitles=subs.srt:force_style='FontSize=18,PrimaryColour=&Hffffff&'" \
+            -filter_complex "\
+              [0:v]scale=1080:-1,scroll=vertical=${SCROLL_SPEED}:v_start=0,crop=1080:1920,subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
+            -map "[v]" -map "1:a" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -shortest \
             output.mp4
