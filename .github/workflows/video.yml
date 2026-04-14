@@ -1,0 +1,57 @@
+name: Horror Video Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      reddit_url:
+        description: 'URL du thread Reddit'
+        required: true
+      audio_url:
+        description: 'URL du fichier WAV (Google Drive direct)'
+        required: true
+      narration:
+        description: 'Texte de la narration pour les sous-titres'
+        required: true
+
+jobs:
+  build-video:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y ffmpeg
+          npm install -g puppeteer-cli
+
+      - name: Screenshot Reddit
+        run: |
+          puppeteer screenshot \
+            --url "${{ github.event.inputs.reddit_url }}" \
+            --full-page \
+            --output screenshot.png \
+            --viewport-width 1080
+
+      - name: Download audio
+        run: |
+          wget -O narration.wav "${{ github.event.inputs.audio_url }}"
+
+      - name: Generate SRT subtitles
+        run: |
+          cat > subs.srt << 'EOF'
+          ${{ github.event.inputs.narration }}
+          EOF
+
+      - name: Assemble video
+        run: |
+          ffmpeg \
+            -loop 1 -i screenshot.png \
+            -i narration.wav \
+            -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2" \
+            -c:v libx264 -preset fast -crf 23 \
+            -c:a aac -shortest \
+            output.mp4
+
+      - name: Upload video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: horror-video
+          path: output.mp4
