@@ -21,44 +21,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg python3-pip bc
-          pip3 install Pillow playwright --break-system-packages
+          pip3 install stable-ts Pillow playwright --break-system-packages
           playwright install chromium --with-deps
 
       - name: Download audio
         run: wget -O narration.wav "${{ github.event.inputs.audio_url }}"
 
-      - name: Generate SRT from narration
-        run: |
-          python3 << 'EOF'
-          import re, subprocess
-
-          text = open('narration.txt', 'r').read().strip()
-
-          result = subprocess.run(['ffprobe', '-i', 'narration.wav', '-show_entries',
-                                   'format=duration', '-v', 'quiet', '-of', 'csv=p=0'],
-                                   capture_output=True, text=True)
-          duration = float(result.stdout.strip())
-
-          sentences = re.split(r'(?<=[.!?…])\s+', text)
-          sentences = [s.strip() for s in sentences if s.strip()]
-
-          time_per = duration / len(sentences)
-
-          def fmt(s):
-              h = int(s // 3600)
-              m = int((s % 3600) // 60)
-              sec = s % 60
-              return f"{h:02d}:{m:02d}:{sec:06.3f}".replace('.', ',')
-
-          srt = ""
-          for i, sentence in enumerate(sentences):
-              start = i * time_per
-              end = (i + 1) * time_per
-              srt += f"{i+1}\n{fmt(start)} --> {fmt(end)}\n{sentence}\n\n"
-
-          open('subs.srt', 'w').write(srt)
-          print(f"Generated {len(sentences)} subtitles")
-          EOF
+      - name: Generate SRT subtitles
+        run: stable-ts narration.wav --output subs.srt
 
       - name: Generate Reddit HTML
         run: |
@@ -187,7 +157,7 @@ jobs:
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -filter_complex "[0:v]scale=1080:${HEIGHT},crop=1080:1920:0:'min(t*${SCROLL}\,${HEIGHT}-1920)',subtitles=subs.srt:force_style='FontSize=22,PrimaryColour=&H00FF00FF&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
+            -filter_complex "[0:v]scale=1080:${HEIGHT},crop=1080:1920:0:'min(t*${SCROLL}\,${HEIGHT}-1920)',subtitles=subs.srt:force_style='FontSize=22,PrimaryColour=&H00ffffff&,SecondaryColour=&H00FF00FF&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
             -map "[v]" -map "1:a" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -shortest \
