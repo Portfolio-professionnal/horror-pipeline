@@ -31,8 +31,7 @@ jobs:
         run: stable-ts narration.wav --output subs.srt
 
       - name: Screenshot Reddit
-        run: |
-          puppeteer screenshot "${{ github.event.inputs.reddit_url }}" screenshot.png --full-page --viewport "1080x1920"
+        run: puppeteer screenshot "${{ github.event.inputs.reddit_url }}" screenshot.png --full-page --viewport "1080x1920" --no-sandbox
 
       - name: Assemble video
         run: |
