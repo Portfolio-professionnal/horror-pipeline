@@ -36,67 +36,112 @@ jobs:
           import json
           d = json.load(open('post.json'))
           title = d['title'].replace('<','&lt;').replace('>','&gt;')
-          text = d['text'].replace('<','&lt;').replace('>','&gt;').replace('\n','<br><br>')
+          text = d['text'].replace('<','&lt;').replace('>','&gt;').replace('\n\n','</p><p>').replace('\n','<br>')
           author = d['author']
           score = d['score']
           html = f"""<!DOCTYPE html>
           <html>
           <head>
           <meta charset="UTF-8">
-          <meta name="viewport" content="width=1080">
           <style>
             * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-            body {{ background: #dae0e6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 1080px; }}
-            .post-container {{ background: #1a1a1b; min-height: 100vh; padding: 0; }}
-            .header {{ background: #1a1a1b; border-bottom: 1px solid #343536; padding: 10px 20px; display: flex; align-items: center; gap: 8px; }}
-            .header-logo {{ color: #ff4500; font-size: 24px; font-weight: 900; }}
-            .post {{ background: #272729; margin: 0; padding: 0; }}
-            .post-vote {{ display: inline-flex; flex-direction: column; align-items: center; padding: 8px; min-width: 40px; }}
-            .vote-up {{ color: #ff4500; font-size: 18px; }}
-            .vote-count {{ color: #ff4500; font-size: 12px; font-weight: 700; }}
-            .post-content {{ padding: 16px; }}
-            .post-meta {{ display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }}
-            .subreddit {{ color: #d7dadc; font-weight: 700; font-size: 13px; }}
-            .dot {{ color: #818384; font-size: 13px; }}
-            .author {{ color: #818384; font-size: 13px; }}
+            body {{
+              background: #1a1a1b;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              width: 1080px;
+              padding: 0;
+            }}
+            .header {{
+              background: #1a1a1b;
+              border-bottom: 2px solid #ff4500;
+              padding: 20px 30px;
+              display: flex;
+              align-items: center;
+            }}
+            .header-logo {{
+              color: #ff4500;
+              font-size: 42px;
+              font-weight: 900;
+              letter-spacing: -1px;
+            }}
+            .post {{
+              background: #272729;
+              margin: 20px;
+              border-radius: 8px;
+              border: 1px solid #343536;
+            }}
+            .post-meta {{
+              padding: 20px 30px 10px;
+              display: flex;
+              align-items: center;
+              gap: 10px;
+              flex-wrap: wrap;
+            }}
+            .subreddit {{
+              color: #ff4500;
+              font-weight: 700;
+              font-size: 24px;
+            }}
+            .dot {{ color: #818384; font-size: 20px; }}
+            .author {{ color: #818384; font-size: 22px; }}
             .author span {{ color: #4fbdff; }}
-            .post-title {{ color: #d7dadc; font-size: 20px; font-weight: 500; line-height: 1.5; margin-bottom: 16px; }}
-            .post-body {{ color: #d7dadc; font-size: 15px; line-height: 1.9; padding: 0; }}
-            .post-body br {{ display: block; margin: 4px 0; }}
-            .post-footer {{ display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-top: 1px solid #343536; }}
-            .footer-btn {{ color: #818384; font-size: 12px; font-weight: 700; padding: 6px 8px; border-radius: 2px; cursor: pointer; }}
-            .footer-btn:hover {{ background: #343536; color: #d7dadc; }}
-            .awards {{ display: flex; gap: 4px; margin-bottom: 8px; }}
-            .flair {{ background: #343536; color: #d7dadc; font-size: 11px; padding: 2px 6px; border-radius: 10px; }}
-            .nsfw-tag {{ background: #ff585b; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }}
+            .score {{
+              background: #ff4500;
+              color: white;
+              font-size: 20px;
+              font-weight: 700;
+              padding: 4px 12px;
+              border-radius: 20px;
+            }}
+            .post-title {{
+              color: #d7dadc;
+              font-size: 38px;
+              font-weight: 700;
+              line-height: 1.4;
+              padding: 10px 30px 20px;
+              border-bottom: 1px solid #343536;
+            }}
+            .post-body {{
+              color: #d7dadc;
+              font-size: 28px;
+              line-height: 2.0;
+              padding: 30px;
+            }}
+            .post-body p {{
+              margin-bottom: 24px;
+            }}
+            .post-footer {{
+              padding: 16px 30px;
+              border-top: 1px solid #343536;
+              display: flex;
+              gap: 20px;
+            }}
+            .footer-btn {{
+              color: #818384;
+              font-size: 20px;
+              font-weight: 700;
+            }}
           </style>
           </head>
           <body>
-          <div class="post-container">
             <div class="header">
               <div class="header-logo">reddit</div>
             </div>
             <div class="post">
-              <div class="post-content">
-                <div class="post-meta">
-                  <span class="subreddit">r/nosleep</span>
-                  <span class="dot">•</span>
-                  <span class="author">Posted by <span>u/{author}</span></span>
-                  <span class="dot">•</span>
-                  <span class="flair">🔒 Nosleep</span>
-                </div>
-                <div class="post-title">{title}</div>
-                <div class="post-body">{text}</div>
+              <div class="post-meta">
+                <span class="subreddit">r/nosleep</span>
+                <span class="dot">•</span>
+                <span class="author">Posted by <span>u/{author}</span></span>
+                <span class="score">▲ {score}</span>
               </div>
+              <div class="post-title">{title}</div>
+              <div class="post-body"><p>{text}</p></div>
               <div class="post-footer">
-                <span class="vote-up">▲</span>
-                <span class="vote-count">{score}</span>
                 <span class="footer-btn">💬 Comments</span>
                 <span class="footer-btn">⬆ Share</span>
                 <span class="footer-btn">⭐ Save</span>
               </div>
             </div>
-          </div>
           </body>
           </html>"""
           open('thread.html', 'w').write(html)
@@ -107,11 +152,12 @@ jobs:
         run: |
           python3 << 'EOF'
           from playwright.sync_api import sync_playwright
+          import os
           with sync_playwright() as p:
               browser = p.chromium.launch(args=['--no-sandbox'])
               context = browser.new_context(viewport={'width': 1080, 'height': 1920})
               page = context.new_page()
-              page.goto(f"file:///home/runner/work/horror-pipeline/horror-pipeline/thread.html", wait_until='load')
+              page.goto(f"file://{os.getcwd()}/thread.html", wait_until='load')
               page.screenshot(path='screenshot.png', full_page=True)
               browser.close()
           print('Screenshot done')
@@ -125,7 +171,7 @@ jobs:
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -filter_complex "[0:v]scale=1080:${HEIGHT},crop=1080:1920:0:'min(t*${SCROLL}\,${HEIGHT}-1920)',subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
+            -filter_complex "[0:v]scale=1080:${HEIGHT},crop=1080:1920:0:'min(t*${SCROLL}\,${HEIGHT}-1920)',subtitles=subs.srt:force_style='FontSize=22,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
             -map "[v]" -map "1:a" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -shortest \
