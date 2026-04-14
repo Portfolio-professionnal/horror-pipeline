@@ -32,32 +32,29 @@ jobs:
 
       - name: Generate Reddit HTML
         run: |
-          JSON_URL=$(echo "${{ github.event.inputs.reddit_url }}" | sed 's|/$||').json
-          curl -s -L -A "Mozilla/5.0" -H "Accept: application/json" "$JSON_URL" > post.json
           python3 -c "
-          import json, sys
+          import json
           d = json.load(open('post.json'))
-          post = d[0]['data']['children'][0]['data']
-          title = post['title'].replace('<','&lt;').replace('>','&gt;')
-          text = post['selftext'][:5000].replace('<','&lt;').replace('>','&gt;').replace('\n','<br>')
-          author = post['author']
-          score = post['score']
-          html = f'''<!DOCTYPE html>
+          title = d['title'].replace('<','&lt;').replace('>','&gt;')
+          text = d['text'][:5000].replace('<','&lt;').replace('>','&gt;').replace('\n','<br>')
+          author = d['author']
+          score = d['score']
+          html = '''<!DOCTYPE html>
           <html><head><meta charset=\"UTF-8\">
           <style>
-          body {{ background: #1a1a1b; color: #d7dadc; font-family: sans-serif; margin: 0; padding: 20px; width: 1080px; }}
-          .post {{ background: #272729; border-radius: 8px; padding: 24px; }}
-          .sub {{ color: #ff4500; font-weight: 700; font-size: 14px; }}
-          .author {{ color: #818384; font-size: 13px; margin: 8px 0; }}
-          .title {{ font-size: 22px; font-weight: 700; margin: 16px 0; line-height: 1.4; }}
-          .text {{ font-size: 16px; line-height: 1.8; margin-top: 16px; }}
+          body { background: #1a1a1b; color: #d7dadc; font-family: sans-serif; margin: 0; padding: 20px; width: 1080px; }
+          .post { background: #272729; border-radius: 8px; padding: 24px; }
+          .sub { color: #ff4500; font-weight: 700; font-size: 14px; }
+          .author { color: #818384; font-size: 13px; margin: 8px 0; }
+          .title { font-size: 22px; font-weight: 700; margin: 16px 0; line-height: 1.4; }
+          .text { font-size: 16px; line-height: 1.8; margin-top: 16px; }
           </style></head>
           <body><div class=\"post\">
           <div class=\"sub\">r/nosleep</div>
-          <div class=\"author\">u/{author} • ▲ {score}</div>
-          <div class=\"title\">{title}</div>
+          <div class=\"author\">u/''' + author + ''' • ▲ ''' + str(score) + '''</div>
+          <div class=\"title\">''' + title + '''</div>
           <hr style=\"border-color:#343536\">
-          <div class=\"text\">{text}</div>
+          <div class=\"text\">''' + text + '''</div>
           </div></body></html>'''
           open('thread.html','w').write(html)
           print('HTML generated')
