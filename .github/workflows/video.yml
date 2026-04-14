@@ -23,6 +23,7 @@ jobs:
           sudo apt-get install -y ffmpeg python3-pip bc
           pip3 install stable-ts Pillow --break-system-packages
           npm install -g puppeteer-cli
+          node -e "require('puppeteer')" 2>/dev/null || npm install puppeteer
 
       - name: Download audio
         run: wget -O narration.wav "${{ github.event.inputs.audio_url }}"
@@ -32,11 +33,23 @@ jobs:
 
       - name: Screenshot Reddit
         run: |
-          puppeteer screenshot "${{ github.event.inputs.reddit_url }}" screenshot.png \
-            --full-page \
-            --viewport "1080x1920" \
-            --no-sandbox \
-            --cookie "token_v2=${{ secrets.REDDIT_COOKIE }};domain=.reddit.com"
+          cat > screenshot.js << 'EOF'
+          const puppeteer = require('puppeteer');
+          (async () => {
+            const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+            const page = await browser.newPage();
+            await page.setViewport({ width: 1080, height: 1920 });
+            await page.setCookie({
+              name: 'token_v2',
+              value: process.env.REDDIT_COOKIE,
+              domain: '.reddit.com'
+            });
+            await page.goto(process.env.REDDIT_URL, { waitUntil: 'networkidle2', timeout: 60000 });
+            await page.screenshot({ path: 'screenshot.png', fullPage: true });
+            await browser.close();
+          })();
+          EOF
+          REDDIT_COOKIE="${{ secrets.REDDIT_COOKIE }}" REDDIT_URL="${{ github.event.inputs.reddit_url }}" node screenshot.js
 
       - name: Assemble video with scroll
         run: |
