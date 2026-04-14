@@ -20,8 +20,8 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg python3-pip
-          pip3 install stable-ts --break-system-packages
+          sudo apt-get install -y ffmpeg python3-pip bc
+          pip3 install stable-ts Pillow --break-system-packages
           npm install -g puppeteer-cli
 
       - name: Download audio
@@ -33,38 +33,35 @@ jobs:
       - name: Generate Reddit HTML
         run: |
           JSON_URL=$(echo "${{ github.event.inputs.reddit_url }}" | sed 's|/$||').json
-          curl -s -A "n8n-bot/1.0" "$JSON_URL" > post.json
-          TITLE=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['title'])")
-          TEXT=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['selftext'][:3000])")
-          AUTHOR=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['author'])")
-          SCORE=$(python3 -c "import json,sys; d=json.load(open('post.json')); print(d[0]['data']['children'][0]['data']['score'])")
-          cat > thread.html << HTMLEOF
-          <!DOCTYPE html>
-          <html>
-          <head>
-          <meta charset="UTF-8">
+          curl -s -L -A "Mozilla/5.0" -H "Accept: application/json" "$JSON_URL" > post.json
+          python3 -c "
+          import json, sys
+          d = json.load(open('post.json'))
+          post = d[0]['data']['children'][0]['data']
+          title = post['title'].replace('<','&lt;').replace('>','&gt;')
+          text = post['selftext'][:5000].replace('<','&lt;').replace('>','&gt;').replace('\n','<br>')
+          author = post['author']
+          score = post['score']
+          html = f'''<!DOCTYPE html>
+          <html><head><meta charset=\"UTF-8\">
           <style>
-            body { background: #1a1a1b; color: #d7dadc; font-family: 'IBM Plex Sans', sans-serif; margin: 0; padding: 20px; width: 1080px; }
-            .post { background: #272729; border-radius: 8px; padding: 24px; margin-bottom: 16px; }
-            .subreddit { color: #ff4500; font-weight: 700; font-size: 14px; }
-            .author { color: #818384; font-size: 13px; margin: 8px 0; }
-            .title { font-size: 22px; font-weight: 700; margin: 16px 0; line-height: 1.4; }
-            .score { color: #ff4500; font-weight: 700; font-size: 14px; }
-            .text { font-size: 16px; line-height: 1.8; color: #d7dadc; white-space: pre-wrap; margin-top: 16px; }
-            .divider { border: none; border-top: 1px solid #343536; margin: 16px 0; }
-          </style>
-          </head>
-          <body>
-          <div class="post">
-            <div class="subreddit">r/nosleep</div>
-            <div class="author">Posted by u/$AUTHOR • ▲ $SCORE</div>
-            <div class="title">$TITLE</div>
-            <hr class="divider">
-            <div class="text">$TEXT</div>
-          </div>
-          </body>
-          </html>
-          HTMLEOF
+          body {{ background: #1a1a1b; color: #d7dadc; font-family: sans-serif; margin: 0; padding: 20px; width: 1080px; }}
+          .post {{ background: #272729; border-radius: 8px; padding: 24px; }}
+          .sub {{ color: #ff4500; font-weight: 700; font-size: 14px; }}
+          .author {{ color: #818384; font-size: 13px; margin: 8px 0; }}
+          .title {{ font-size: 22px; font-weight: 700; margin: 16px 0; line-height: 1.4; }}
+          .text {{ font-size: 16px; line-height: 1.8; margin-top: 16px; }}
+          </style></head>
+          <body><div class=\"post\">
+          <div class=\"sub\">r/nosleep</div>
+          <div class=\"author\">u/{author} • ▲ {score}</div>
+          <div class=\"title\">{title}</div>
+          <hr style=\"border-color:#343536\">
+          <div class=\"text\">{text}</div>
+          </div></body></html>'''
+          open('thread.html','w').write(html)
+          print('HTML generated')
+          "
 
       - name: Screenshot HTML
         run: puppeteer screenshot "file://$(pwd)/thread.html" screenshot.png --full-page --viewport "1080x1920" --no-sandbox
@@ -75,21 +72,17 @@ jobs:
           from PIL import Image
           img = Image.open('screenshot.png')
           print(img.size[1])
-          " 2>/dev/null || echo "3000")
+          ")
           echo "HEIGHT=$HEIGHT" >> $GITHUB_ENV
-
-      - name: Install Pillow
-        run: pip3 install Pillow --break-system-packages
 
       - name: Assemble video with scroll
         run: |
           DURATION=$(ffprobe -i narration.wav -show_entries format=duration -v quiet -of csv="p=0" | cut -d. -f1)
-          SCROLL_SPEED=$(echo "scale=4; (${{ env.HEIGHT }} - 1920) / $DURATION / 25" | bc)
+          SCROLL_SPEED=$(echo "scale=6; ($HEIGHT - 1920) / ($DURATION * 25)" | bc)
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -filter_complex "\
-              [0:v]scale=1080:-1,scroll=vertical=${SCROLL_SPEED}:v_start=0,crop=1080:1920,subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
+            -filter_complex "[0:v]scale=1080:-1,scroll=vertical=${SCROLL_SPEED}:v_start=0,crop=1080:1920,subtitles=subs.srt:force_style='FontSize=20,PrimaryColour=&H00ffffff&,OutlineColour=&H00000000&,Outline=2,Shadow=1'[v]" \
             -map "[v]" -map "1:a" \
             -c:v libx264 -preset fast -crf 23 \
             -c:a aac -shortest \
