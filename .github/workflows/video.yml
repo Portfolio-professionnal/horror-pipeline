@@ -34,9 +34,10 @@ jobs:
         run: |
           stable-ts narration.wav --output subs.srt
 
-      - name: Download background music
+     - name: Download background music
         run: |
-          wget -O music.mp3 "https://www.soundjay.com/misc/sounds/dark-ambience-1.mp3"
+          wget -O music.mp3 "https://upload.wikimedia.org/wikipedia/commons/b/bd/Ravel_-_Gaspard_de_la_nuit_-_1._Ondine.ogg" || echo "No music, continuing"
+          ffmpeg -i music.mp3 music_conv.mp3 2>/dev/null || cp narration.wav music_conv.mp3
 
       - name: Screenshot Reddit
         run: |
