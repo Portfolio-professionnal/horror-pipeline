@@ -21,9 +21,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg python3-pip bc
-          pip3 install stable-ts Pillow --break-system-packages
-          npm install -g puppeteer-cli
-          node -e "require('puppeteer')" 2>/dev/null || npm install puppeteer
+          pip3 install stable-ts Pillow playwright --break-system-packages
+          playwright install chromium --with-deps
 
       - name: Download audio
         run: wget -O narration.wav "${{ github.event.inputs.audio_url }}"
@@ -31,25 +30,92 @@ jobs:
       - name: Generate SRT subtitles
         run: stable-ts narration.wav --output subs.srt
 
-      - name: Screenshot Reddit
+      - name: Generate Reddit HTML
         run: |
-          cat > screenshot.js << 'EOF'
-          const puppeteer = require('puppeteer');
-          (async () => {
-            const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-            const page = await browser.newPage();
-            await page.setViewport({ width: 1080, height: 1920 });
-            await page.setCookie({
-              name: 'token_v2',
-              value: process.env.REDDIT_COOKIE,
-              domain: '.reddit.com'
-            });
-            await page.goto(process.env.REDDIT_URL, { waitUntil: 'networkidle2', timeout: 60000 });
-            await page.screenshot({ path: 'screenshot.png', fullPage: true });
-            await browser.close();
-          })();
+          python3 << 'EOF'
+          import json
+          d = json.load(open('post.json'))
+          title = d['title'].replace('<','&lt;').replace('>','&gt;')
+          text = d['text'].replace('<','&lt;').replace('>','&gt;').replace('\n','<br><br>')
+          author = d['author']
+          score = d['score']
+          html = f"""<!DOCTYPE html>
+          <html>
+          <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=1080">
+          <style>
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{ background: #dae0e6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; width: 1080px; }}
+            .post-container {{ background: #1a1a1b; min-height: 100vh; padding: 0; }}
+            .header {{ background: #1a1a1b; border-bottom: 1px solid #343536; padding: 10px 20px; display: flex; align-items: center; gap: 8px; }}
+            .header-logo {{ color: #ff4500; font-size: 24px; font-weight: 900; }}
+            .post {{ background: #272729; margin: 0; padding: 0; }}
+            .post-vote {{ display: inline-flex; flex-direction: column; align-items: center; padding: 8px; min-width: 40px; }}
+            .vote-up {{ color: #ff4500; font-size: 18px; }}
+            .vote-count {{ color: #ff4500; font-size: 12px; font-weight: 700; }}
+            .post-content {{ padding: 16px; }}
+            .post-meta {{ display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }}
+            .subreddit {{ color: #d7dadc; font-weight: 700; font-size: 13px; }}
+            .dot {{ color: #818384; font-size: 13px; }}
+            .author {{ color: #818384; font-size: 13px; }}
+            .author span {{ color: #4fbdff; }}
+            .post-title {{ color: #d7dadc; font-size: 20px; font-weight: 500; line-height: 1.5; margin-bottom: 16px; }}
+            .post-body {{ color: #d7dadc; font-size: 15px; line-height: 1.9; padding: 0; }}
+            .post-body br {{ display: block; margin: 4px 0; }}
+            .post-footer {{ display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-top: 1px solid #343536; }}
+            .footer-btn {{ color: #818384; font-size: 12px; font-weight: 700; padding: 6px 8px; border-radius: 2px; cursor: pointer; }}
+            .footer-btn:hover {{ background: #343536; color: #d7dadc; }}
+            .awards {{ display: flex; gap: 4px; margin-bottom: 8px; }}
+            .flair {{ background: #343536; color: #d7dadc; font-size: 11px; padding: 2px 6px; border-radius: 10px; }}
+            .nsfw-tag {{ background: #ff585b; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }}
+          </style>
+          </head>
+          <body>
+          <div class="post-container">
+            <div class="header">
+              <div class="header-logo">reddit</div>
+            </div>
+            <div class="post">
+              <div class="post-content">
+                <div class="post-meta">
+                  <span class="subreddit">r/nosleep</span>
+                  <span class="dot">•</span>
+                  <span class="author">Posted by <span>u/{author}</span></span>
+                  <span class="dot">•</span>
+                  <span class="flair">🔒 Nosleep</span>
+                </div>
+                <div class="post-title">{title}</div>
+                <div class="post-body">{text}</div>
+              </div>
+              <div class="post-footer">
+                <span class="vote-up">▲</span>
+                <span class="vote-count">{score}</span>
+                <span class="footer-btn">💬 Comments</span>
+                <span class="footer-btn">⬆ Share</span>
+                <span class="footer-btn">⭐ Save</span>
+              </div>
+            </div>
+          </div>
+          </body>
+          </html>"""
+          open('thread.html', 'w').write(html)
+          print('HTML generated')
           EOF
-          REDDIT_COOKIE="${{ secrets.REDDIT_COOKIE }}" REDDIT_URL="${{ github.event.inputs.reddit_url }}" node screenshot.js
+
+      - name: Screenshot HTML
+        run: |
+          python3 << 'EOF'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              browser = p.chromium.launch(args=['--no-sandbox'])
+              context = browser.new_context(viewport={'width': 1080, 'height': 1920})
+              page = context.new_page()
+              page.goto(f"file:///home/runner/work/horror-pipeline/horror-pipeline/thread.html", wait_until='load')
+              page.screenshot(path='screenshot.png', full_page=True)
+              browser.close()
+          print('Screenshot done')
+          EOF
 
       - name: Assemble video with scroll
         run: |
