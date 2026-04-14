@@ -27,17 +27,8 @@ jobs:
       - name: Download audio
         run: wget -O narration.wav "${{ github.event.inputs.audio_url }}"
 
-      - name: Read narration
-        run: cat narration.txt
-
       - name: Generate SRT subtitles
-        run: |
-          stable-ts narration.wav --output subs.srt
-
-     - name: Download background music
-        run: |
-          wget -O music.mp3 "https://upload.wikimedia.org/wikipedia/commons/b/bd/Ravel_-_Gaspard_de_la_nuit_-_1._Ondine.ogg" || echo "No music, continuing"
-          ffmpeg -i music.mp3 music_conv.mp3 2>/dev/null || cp narration.wav music_conv.mp3
+        run: stable-ts narration.wav --output subs.srt
 
       - name: Screenshot Reddit
         run: |
@@ -52,10 +43,13 @@ jobs:
           ffmpeg \
             -loop 1 -i screenshot.png \
             -i narration.wav \
-            -stream_loop -1 -i music.mp3 \
-            -filter_complex "\
-              [0:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,subtitles=subs.srt:force_style='FontSize=18,PrimaryColour=&Hffffff&'[v];\
-              [1:a]volume=1.0[narr];\
-              [2:a]volume=0.15[music];\
-              [narr][music]amix=inputs=2:duration=first[a]" \
-            -map
+            -vf "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black,subtitles=subs.srt:force_style='FontSize=18,PrimaryColour=&Hffffff&'" \
+            -c:v libx264 -preset fast -crf 23 \
+            -c:a aac -shortest \
+            output.mp4
+
+      - name: Upload video
+        uses: actions/upload-artifact@v4
+        with:
+          name: horror-video
+          path: output.mp4
